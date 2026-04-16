@@ -1,0 +1,16 @@
+{
+    "name": "steam-download-now",
+    "version": "1.0.0",
+    "type": "module",
+    "main": "./frontend/index.tsx",
+    "scripts": {
+        "build": "millennium-ttc --build prod && cp .millennium/Dist/index.js frontend/index.js",
+        "dev": "millennium-ttc --build dev && cp .millennium/Dist/index.js frontend/index.js"
+    },
+    "dependencies": {
+        "@steambrew/client": "^5.5.3"
+    },
+    "devDependencies": {
+        "@steambrew/ttc": "^3.3.6"
+    }
+}
