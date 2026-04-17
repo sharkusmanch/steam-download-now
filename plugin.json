@@ -2,7 +2,7 @@
     "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/sys/plugin-schema.json",
     "name": "steam-download-now",
     "common_name": "Steam Download Now",
-    "description": "Queues all scheduled/pending Steam downloads immediately, repeating every hour.",
-    "version": "1.0.0",
+    "description": "Queues all scheduled/pending Steam downloads on demand or on a configurable interval.",
+    "version": "1.1.0",
     "useBackend": true
 }

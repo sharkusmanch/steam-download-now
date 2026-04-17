@@ -1,0 +1,101 @@
+name: Release Plugin
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build plugin
+        run: pnpm run build
+
+      - name: Derive plugin metadata
+        id: meta
+        run: |
+          NAME=$(jq -r .name plugin.json)
+          COMMIT=$(git rev-parse HEAD)
+
+          # Mirrors SteamClientHomebrew/PluginDatabase get-plugin-id.sh — the
+          # plugin's canonical id is the first commit not authored by the
+          # Millennium template bots.
+          ID=$(git log --format='%H %ae' --reverse \
+               | grep -Fv \
+                   -e '81448108+shdwmtr@users.noreply.github.com' \
+                   -e 'millennium[bot]@noreply.steambrew.app' \
+               | head -1 | cut -d' ' -f1)
+          if [ -z "$ID" ]; then
+            ID=$(git rev-list --max-parents=0 HEAD | head -1)
+          fi
+
+          TAG="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_EVENT_NAME}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+
+          echo "name=$NAME"     >> "$GITHUB_OUTPUT"
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          echo "id=$ID"         >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"       >> "$GITHUB_OUTPUT"
+
+      - name: Stage release directory
+        env:
+          NAME:   ${{ steps.meta.outputs.name }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+          PID:    ${{ steps.meta.outputs.id }}
+        run: |
+          OUT="dist/$NAME"
+          mkdir -p "$OUT"
+          cp -r .millennium "$OUT/"
+          cp -r backend     "$OUT/"
+          cp plugin.json    "$OUT/"
+          [ -f README.md ]        && cp README.md        "$OUT/"
+          [ -f LICENSE ]          && cp LICENSE          "$OUT/"
+          [ -f requirements.txt ] && cp requirements.txt "$OUT/"
+          printf '{"commit":"%s","id":"%s"}\n' "$COMMIT" "$PID" > "$OUT/metadata.json"
+
+      - name: Create archive
+        env:
+          NAME: ${{ steps.meta.outputs.name }}
+          TAG:  ${{ steps.meta.outputs.tag }}
+        run: |
+          ASSET="${NAME}-${TAG}.zip"
+          (cd dist && zip -r "../${ASSET}" "${NAME}")
+          echo "ASSET=${ASSET}" >> "$GITHUB_ENV"
+
+      - name: Upload to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET }}
+
+      - name: Upload as workflow artifact (manual runs)
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET }}
+          path: ${{ env.ASSET }}
